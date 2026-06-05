@@ -47,7 +47,7 @@
   .cat-btn{margin-top:8px;background:none;border:1.5px solid var(--rose);border-radius:8px;padding:6px 12px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--warm);cursor:pointer;font-weight:500;-webkit-tap-highlight-color:transparent;}
   .cat-btn:active{background:var(--blush);}
   .meal-row{display:flex;align-items:center;border-bottom:1px solid #f0e8e4;}
-  .formula-input{flex:1;border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);padding:12px 14px;outline:none;min-width:0;}
+  .formula-input{flex:1;border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text);padding:10px 10px;outline:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .formula-input::placeholder{color:#b89080;}
   .formula-check{width:76px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background 0.15s;border-right:1px solid #f0e8e4;}
   .formula-check:active{background:var(--blush);}
@@ -154,12 +154,7 @@
     <!-- MORNING -->
     <div class="time-block">
       <div class="time-header"><div class="time-dot"></div><div class="time-label">Morning</div></div>
-      <div class="card">
-        <div class="check-item" onclick="toggleCheck(this)" data-key="breakfast">
-          <div class="check-box">&#10003;</div>
-          <div class="check-text" id="habit_breakfast">&#127859; Ate breakfast within 1 hour of waking</div>
-        </div>
-      </div>
+
       <div class="card">
         <div class="meal-top" style="padding:14px 18px 10px;"><span class="meal-icon">&#127749;</span><span class="meal-name">Breakfast</span></div>
         <div class="meal-row">
@@ -274,6 +269,17 @@
         <input type="hidden" id="meal_supper" value="">
       </div>
 
+    </div>
+
+    <!-- EVENING HABITS -->
+    <div class="time-block">
+      <div class="time-header"><div class="time-dot"></div><div class="time-label">Evening</div></div>
+      <div class="card">
+        <div class="check-item" onclick="toggleCheck(this)" data-key="workout">
+          <div class="check-box">&#10003;</div>
+          <div class="check-text">&#127947; Worked out today</div>
+        </div>
+      </div>
     </div>
 
     <!-- END OF DAY -->
