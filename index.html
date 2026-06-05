@@ -103,6 +103,8 @@
   .h-empty{text-align:center;padding:40px 20px;color:var(--muted);font-style:italic;font-size:14px;}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--deep);color:white;padding:12px 24px;border-radius:30px;font-size:14px;font-weight:500;transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1);z-index:999;white-space:nowrap;}
   .toast.show{transform:translateX(-50%) translateY(0);}
+  .food-flag{font-size:11px;color:#c0392b;background:#fdf0ee;border-radius:6px;padding:3px 8px;margin:2px 10px 6px 10px;display:none;}
+  .food-flag.visible{display:block;}
   .feedback-btn{position:fixed;bottom:24px;right:16px;width:44px;height:44px;border-radius:50%;background:var(--warm);border:none;color:white;font-size:18px;cursor:pointer;box-shadow:0 2px 12px rgba(139,74,60,0.3);z-index:998;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;}
   .feedback-btn:active{opacity:0.8;}
   .modal-overlay{position:fixed;inset:0;background:rgba(58,42,36,0.5);z-index:1000;display:none;align-items:flex-end;justify-content:center;}
@@ -159,19 +161,23 @@
         <div class="meal-top" style="padding:14px 18px 10px;"><span class="meal-icon">&#127749;</span><span class="meal-name">Breakfast</span></div>
         <div class="meal-row">
           <div class="formula-check" onclick="toggleFormula(this,'breakfast','protein')" data-meal="breakfast" data-cat="protein"><div class="formula-box">&#10003;</div><div class="formula-label">&#128170; Protein</div></div>
-          <input class="formula-input" id="meal_breakfast_protein" placeholder="e.g. eggs, yoghurt, cottage cheese, protein shake" oninput="syncMealField('breakfast')">
+          <input class="formula-input" id="meal_breakfast_protein" placeholder="e.g. eggs, yoghurt, cottage cheese, protein shake" oninput="syncMealField('breakfast');checkFood('breakfast','protein',this.value)">
+          <div class="food-flag" id="flag_breakfast_protein"></div>
         </div>
         <div class="meal-row">
           <div class="formula-check" onclick="toggleFormula(this,'breakfast','carb')" data-meal="breakfast" data-cat="carb"><div class="formula-box">&#10003;</div><div class="formula-label">&#127806; Carb</div></div>
-          <input class="formula-input" id="meal_breakfast_carb" placeholder="e.g. toast, oats, granola, bagel" oninput="syncMealField('breakfast')">
+          <input class="formula-input" id="meal_breakfast_carb" placeholder="e.g. toast, oats, granola, bagel" oninput="syncMealField('breakfast');checkFood('breakfast','carb',this.value)">
+          <div class="food-flag" id="flag_breakfast_carb"></div>
         </div>
         <div class="meal-row">
           <div class="formula-check" onclick="toggleFormula(this,'breakfast','produce')" data-meal="breakfast" data-cat="produce"><div class="formula-box">&#10003;</div><div class="formula-label">&#129367; Produce</div></div>
-          <input class="formula-input" id="meal_breakfast_produce" placeholder="e.g. berries, banana, spinach, tomatoes" oninput="syncMealField('breakfast')">
+          <input class="formula-input" id="meal_breakfast_produce" placeholder="e.g. berries, banana, spinach, tomatoes" oninput="syncMealField('breakfast');checkFood('breakfast','produce',this.value)">
+          <div class="food-flag" id="flag_breakfast_produce"></div>
         </div>
         <div class="meal-row" style="border-bottom:none;">
           <div class="formula-check" onclick="toggleFormula(this,'breakfast','pleasure')" data-meal="breakfast" data-cat="pleasure"><div class="formula-box">&#10003;</div><div class="formula-label">&#10024; Pleasure</div><div style="font-size:9px;color:var(--muted);margin-top:1px;">built-in enjoyment</div></div>
-          <input class="formula-input" id="meal_breakfast_pleasure" placeholder="e.g. jam, honey, chocolate spread, coffee" oninput="syncMealField('breakfast')">
+          <input class="formula-input" id="meal_breakfast_pleasure" placeholder="e.g. jam, honey, chocolate spread, coffee" oninput="syncMealField('breakfast');checkFood('breakfast','pleasure',this.value)">
+          <div class="food-flag" id="flag_breakfast_pleasure"></div>
         </div>
         <input type="hidden" id="meal_breakfast" value="">
       </div>
@@ -184,19 +190,23 @@
         <div class="meal-top" style="padding:14px 18px 10px;"><span class="meal-icon">&#9728;&#65039;</span><span class="meal-name">Lunch</span></div>
         <div class="meal-row">
           <div class="formula-check" onclick="toggleFormula(this,'lunch','protein')" data-meal="lunch" data-cat="protein"><div class="formula-box">&#10003;</div><div class="formula-label">&#128170; Protein</div></div>
-          <input class="formula-input" id="meal_lunch_protein" placeholder="e.g. chicken, tuna, cottage cheese, eggs" oninput="syncMealField('lunch')">
+          <input class="formula-input" id="meal_lunch_protein" placeholder="e.g. chicken, tuna, cottage cheese, eggs" oninput="syncMealField('lunch');checkFood('lunch','protein',this.value)">
+          <div class="food-flag" id="flag_lunch_protein"></div>
         </div>
         <div class="meal-row">
           <div class="formula-check" onclick="toggleFormula(this,'lunch','carb')" data-meal="lunch" data-cat="carb"><div class="formula-box">&#10003;</div><div class="formula-label">&#127806; Carb</div></div>
-          <input class="formula-input" id="meal_lunch_carb" placeholder="e.g. wrap, rice, pitta, pasta" oninput="syncMealField('lunch')">
+          <input class="formula-input" id="meal_lunch_carb" placeholder="e.g. wrap, rice, pitta, pasta" oninput="syncMealField('lunch');checkFood('lunch','carb',this.value)">
+          <div class="food-flag" id="flag_lunch_carb"></div>
         </div>
         <div class="meal-row">
           <div class="formula-check" onclick="toggleFormula(this,'lunch','produce')" data-meal="lunch" data-cat="produce"><div class="formula-box">&#10003;</div><div class="formula-label">&#129367; Produce</div></div>
-          <input class="formula-input" id="meal_lunch_produce" placeholder="e.g. salad, cucumber, tomatoes, coleslaw" oninput="syncMealField('lunch')">
+          <input class="formula-input" id="meal_lunch_produce" placeholder="e.g. salad, cucumber, tomatoes, coleslaw" oninput="syncMealField('lunch');checkFood('lunch','produce',this.value)">
+          <div class="food-flag" id="flag_lunch_produce"></div>
         </div>
         <div class="meal-row" style="border-bottom:none;">
           <div class="formula-check" onclick="toggleFormula(this,'lunch','pleasure')" data-meal="lunch" data-cat="pleasure"><div class="formula-box">&#10003;</div><div class="formula-label">&#10024; Pleasure</div><div style="font-size:9px;color:var(--muted);margin-top:1px;">built-in enjoyment</div></div>
-          <input class="formula-input" id="meal_lunch_pleasure" placeholder="e.g. hummus, dressing, crisps, something enjoyable" oninput="syncMealField('lunch')">
+          <input class="formula-input" id="meal_lunch_pleasure" placeholder="e.g. hummus, dressing, crisps, something enjoyable" oninput="syncMealField('lunch');checkFood('lunch','pleasure',this.value)">
+          <div class="food-flag" id="flag_lunch_pleasure"></div>
         </div>
         <input type="hidden" id="meal_lunch" value="">
       </div>
@@ -252,34 +262,33 @@
         <div class="meal-top" style="padding:14px 18px 10px;"><span class="meal-icon">&#127769;</span><span class="meal-name">Supper</span></div>
         <div class="meal-row">
           <div class="formula-check" onclick="toggleFormula(this,'supper','protein')" data-meal="supper" data-cat="protein"><div class="formula-box">&#10003;</div><div class="formula-label">&#128170; Protein</div></div>
-          <input class="formula-input" id="meal_supper_protein" placeholder="e.g. salmon, chicken, mince, schnitzel" oninput="syncMealField('supper')">
+          <input class="formula-input" id="meal_supper_protein" placeholder="e.g. salmon, chicken, mince, schnitzel" oninput="syncMealField('supper');checkFood('supper','protein',this.value)">
+          <div class="food-flag" id="flag_supper_protein"></div>
         </div>
         <div class="meal-row">
           <div class="formula-check" onclick="toggleFormula(this,'supper','carb')" data-meal="supper" data-cat="carb"><div class="formula-box">&#10003;</div><div class="formula-label">&#127806; Carb</div></div>
-          <input class="formula-input" id="meal_supper_carb" placeholder="e.g. potatoes, rice, pasta, challah" oninput="syncMealField('supper')">
+          <input class="formula-input" id="meal_supper_carb" placeholder="e.g. potatoes, rice, pasta, challah" oninput="syncMealField('supper');checkFood('supper','carb',this.value)">
+          <div class="food-flag" id="flag_supper_carb"></div>
         </div>
         <div class="meal-row">
           <div class="formula-check" onclick="toggleFormula(this,'supper','produce')" data-meal="supper" data-cat="produce"><div class="formula-box">&#10003;</div><div class="formula-label">&#129367; Produce</div></div>
-          <input class="formula-input" id="meal_supper_produce" placeholder="e.g. roasted veg, salad, green beans, courgette" oninput="syncMealField('supper')">
+          <input class="formula-input" id="meal_supper_produce" placeholder="e.g. roasted veg, salad, green beans, courgette" oninput="syncMealField('supper');checkFood('supper','produce',this.value)">
+          <div class="food-flag" id="flag_supper_produce"></div>
         </div>
         <div class="meal-row" style="border-bottom:none;">
           <div class="formula-check" onclick="toggleFormula(this,'supper','pleasure')" data-meal="supper" data-cat="pleasure"><div class="formula-box">&#10003;</div><div class="formula-label">&#10024; Pleasure</div><div style="font-size:9px;color:var(--muted);margin-top:1px;">built-in enjoyment</div></div>
-          <input class="formula-input" id="meal_supper_pleasure" placeholder="e.g. chocolate, dessert, a nice sauce — enjoy it!" oninput="syncMealField('supper')">
+          <input class="formula-input" id="meal_supper_pleasure" placeholder="e.g. chocolate, dessert, a nice sauce — enjoy it!" oninput="syncMealField('supper');checkFood('supper','pleasure',this.value)">
+          <div class="food-flag" id="flag_supper_pleasure"></div>
         </div>
         <input type="hidden" id="meal_supper" value="">
       </div>
-
-    </div>
-
-    <!-- EVENING HABITS -->
-    <div class="time-block">
-      <div class="time-header"><div class="time-dot"></div><div class="time-label">Evening</div></div>
       <div class="card">
         <div class="check-item" onclick="toggleCheck(this)" data-key="workout">
           <div class="check-box">&#10003;</div>
           <div class="check-text">&#127947; Worked out today</div>
         </div>
       </div>
+
     </div>
 
     <!-- END OF DAY -->
@@ -485,6 +494,94 @@
   updateStartDisplay();
   updateWeekBar();
 
+
+  // ── Food category validator ──────────────────────────────────────
+  const foodMap = {
+    // PROTEINS
+    protein: ['egg','eggs','chicken','turkey','beef','lamb','mince','salmon','tuna','sardine','cod','haddock',
+              'prawn','shrimp','yoghurt','yogurt','cottage cheese','quark','ricotta','feta','cheese',
+              'protein shake','protein powder','tofu','tempeh','edamame','lentil','lentils','chickpea',
+              'chickpeas','black bean','kidney bean','beans','schnitzel','fish','meat','steak',
+              'greek yoghurt','greek yogurt','skyr'],
+    // CARBS (includes fruit — Lauren counts fruit as carb)
+    carb: ['bread','toast','oats','oatmeal','granola','bagel','wrap','pitta','pita','rice','pasta',
+           'potato','potatoes','sweet potato','noodles','cereal','quinoa','couscous','challah',
+           'banana','apple','orange','grapes','mango','pear','melon','watermelon','berries',
+           'strawberry','strawberries','blueberry','blueberries','raspberry','raspberries',
+           'fruit','cracker','crackers','corn','tortilla','waffle','pancake','porridge','rye'],
+    // PRODUCE (vegetables only — NOT fruit)
+    produce: ['spinach','kale','lettuce','salad','cucumber','tomato','tomatoes','pepper','peppers',
+              'broccoli','cauliflower','courgette','zucchini','green bean','green beans','peas',
+              'carrot','carrots','celery','onion','garlic','mushroom','mushrooms','aubergine',
+              'eggplant','cabbage','asparagus','leek','leeks','rocket','arugula','watercress',
+              'beetroot','beet','radish','fennel','coleslaw','veg','vegetables','greens'],
+    // PLEASURE
+    pleasure: ['jam','jelly','honey','chocolate','nutella','peanut butter','almond butter','sauce',
+               'ketchup','mayo','mayonnaise','hummus','dressing','syrup','cream','butter',
+               'coffee','tea','crisps','chips','biscuit','cookie','cake','dessert','ice cream',
+               'spread','tahini','harissa','pesto','chutney','relish','gravy','sweet','treat']
+  };
+
+  // Lauren-specific overrides — foods commonly put in wrong box
+  const flagMessages = {
+    // Fruit in produce box
+    produce_banana: 'Lauren counts banana as a carb, not produce 🍌',
+    produce_apple: 'Lauren counts apple as a carb, not produce 🍎',
+    produce_orange: 'Lauren counts orange as a carb, not produce 🍊',
+    produce_berries: 'Lauren counts berries as a carb, not produce 🍓',
+    produce_strawberries: 'Lauren counts strawberries as a carb, not produce 🍓',
+    produce_blueberries: 'Lauren counts blueberries as a carb, not produce 🫐',
+    produce_raspberries: 'Lauren counts raspberries as a carb, not produce 🍓',
+    produce_grapes: 'Lauren counts grapes as a carb, not produce 🍇',
+    produce_mango: 'Lauren counts mango as a carb, not produce 🥭',
+    produce_fruit: 'Lauren counts fruit as a carb, not produce 🍎',
+    // Cheese/yoghurt as produce or carb
+    carb_yoghurt: 'Yoghurt is protein, not a carb 💪',
+    carb_yogurt: 'Yoghurt is protein, not a carb 💪',
+    carb_cheese: 'Cheese counts as protein here 💪',
+    produce_yoghurt: 'Yoghurt is protein, not produce 💪',
+    produce_cheese: 'Cheese counts as protein here 💪',
+    // Peanut butter
+    carb_peanut: 'Peanut butter is pleasure (or protein), not a carb ✨',
+    protein_peanut: 'Peanut butter works best in the pleasure box ✨',
+    // Hummus
+    protein_hummus: 'Hummus fits better in pleasure or produce, not protein 🫘',
+    carb_hummus: 'Hummus fits better in pleasure, not carb ✨',
+  };
+
+  function checkFood(meal, cat, value) {
+    const flagEl = document.getElementById('flag_' + meal + '_' + cat);
+    if (!flagEl) return;
+    const v = value.toLowerCase().trim();
+    if (!v) { flagEl.textContent = ''; flagEl.classList.remove('visible'); return; }
+
+    // Check specific override messages first
+    for (const [key, msg] of Object.entries(flagMessages)) {
+      const [flagCat, flagWord] = key.split('_');
+      if (flagCat === cat && v.includes(flagWord)) {
+        flagEl.textContent = '⚠️ ' + msg;
+        flagEl.classList.add('visible');
+        return;
+      }
+    }
+
+    // Check if the food belongs in a DIFFERENT category
+    for (const [otherCat, foods] of Object.entries(foodMap)) {
+      if (otherCat === cat) continue;
+      for (const food of foods) {
+        if (v.includes(food)) {
+          const catNames = {protein:'💪 protein',carb:'🌾 carb',produce:'🥗 produce',pleasure:'✨ pleasure'};
+          flagEl.textContent = `⚠️ "${food}" usually goes in ${catNames[otherCat]}`;
+          flagEl.classList.add('visible');
+          return;
+        }
+      }
+    }
+
+    // No issue
+    flagEl.textContent = ''; flagEl.classList.remove('visible');
+  }
+  // ─────────────────────────────────────────────────────────────────
   function updateScore(){
     const n=Object.values(checks).filter(Boolean).length;
     const msgs=['','keep going!','doing great!','halfway there!','almost there!','crushing it! \uD83C\uDF89'];
