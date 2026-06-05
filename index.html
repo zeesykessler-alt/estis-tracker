@@ -326,842 +326,469 @@
 
 <div class="toast" id="toast"></div>
 <script>
-  const today=new Date();
-  const todayKey=today.toISOString().split('T')[0];
-  let activeKey=todayKey; // the day currently being viewed/edited
-  let checks={};
+'use strict';
 
-  function setActiveDate(dateStr) {
-    activeKey = dateStr;
-    const d = new Date(dateStr);
-    document.getElementById('dateDisplay').textContent = d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
-    document.getElementById('dayPicker').value = dateStr;
-    // Reset form
-    checks={};
-    formulaChecks={};
-    document.querySelectorAll('.habit-item').forEach(el=>el.classList.remove('checked'));
-    document.querySelectorAll('.formula-check').forEach(el=>el.classList.remove('ticked'));
-    ['breakfast','lunch','supper'].forEach(m=>{
-      const el=document.getElementById('meal_'+m);if(el)el.value='';
-      // Clear category tags
-      const tags=document.getElementById('tags_'+m);if(tags)tags.innerHTML='';
-      ['protein','carb','produce','pleasure'].forEach(cat=>{const fi=document.getElementById('meal_'+m+'_'+cat);if(fi)fi.value='';});
-    });
-    document.getElementById('stepsInput').value='';
-    document.getElementById('winInput').value='';
-    updateSteps(0);
-    updateScore();
+// ── State ─────────────────────────────────────────────────────────
+const today = new Date();
+today.setHours(0,0,0,0);
+const todayKey = today.toISOString().split('T')[0];
+let activeKey = todayKey;
+let checks = {};
+let formulaChecks = {};
+let allData = {};
+
+// ── Storage ───────────────────────────────────────────────────────
+function saveData(entries) {
+  try { localStorage.setItem('pp_daily', JSON.stringify(entries)); } catch(e) {}
+}
+function loadData() {
+  try { return JSON.parse(localStorage.getItem('pp_daily') || '{}'); } catch(e) { return {}; }
+}
+function saveStartDate(d) { localStorage.setItem('pp_start_date', d); }
+function loadStartDate() { return localStorage.getItem('pp_start_date') || todayKey; }
+
+// ── Start date ────────────────────────────────────────────────────
+let startDate = loadStartDate();
+
+function updateStartDisplay() {
+  const el = document.getElementById('startDateDisplay');
+  if (!el) return;
+  const d = new Date(startDate);
+  el.textContent = d.toLocaleDateString('en-GB', {day:'numeric', month:'long', year:'numeric'});
+}
+
+function changeStartDate() {
+  const input = prompt('Enter your start date (YYYY-MM-DD, e.g. 2025-01-01):');
+  if (input && /^\d{4}-\d{2}-\d{2}$/.test(input)) {
+    startDate = input;
+    saveStartDate(startDate);
+    updateStartDisplay();
     updateWeekBar();
-    loadDay(dateStr);
+  }
+}
+
+function getDayNumber() {
+  const start = new Date(startDate);
+  start.setHours(0,0,0,0);
+  return Math.max(0, Math.floor((today - start) / 86400000));
+}
+
+// ── Phase / week bar ──────────────────────────────────────────────
+function updateWeekBar() {
+  const day = getDayNumber();
+  const phases = [
+    { days:7,  label:'Week 1',  title:'This week: eat breakfast',
+      sub:'One habit at a time. Just focus on eating breakfast every day this week.',
+      walk:'Walk 5–10 minutes today — just start',
+      stepsHint:'Week 1 goal: just move. Even 5 minutes counts.',
+      showSnack:false, showStrength:false, showCarbs:false,
+      habitProtein:'💪 Protein at breakfast', score:2 },
+    { days:7,  label:'Week 2',  title:'This week: breakfast + lunch',
+      sub:'Two meals at normal times — eat before desperate, not at 3pm.',
+      walk:'Walk 10 minutes today',
+      stepsHint:'Week 2 goal: 3,000–5,000 steps',
+      showSnack:false, showStrength:false, showCarbs:false,
+      habitProtein:'💪 Protein at breakfast and lunch', score:3 },
+    { days:7,  label:'Week 3',  title:'This week: three proper meals',
+      sub:'Breakfast, lunch and supper. No skipping. Carbs at every meal.',
+      walk:'Walk 10–15 minutes today',
+      stepsHint:'Week 3 goal: 5,000 steps',
+      showSnack:false, showStrength:false, showCarbs:true,
+      habitProtein:'💪 Protein at every meal', score:4 },
+    { days:39, label:'Month 2', title:'Month 2: protein + water + walking',
+      sub:'25–35g protein per meal, 80–120oz water, walk 20–30 minutes daily.',
+      walk:'Walk 20–30 minutes today',
+      stepsHint:'Month 2 goal: 6,000–8,000 steps',
+      showSnack:true, showStrength:true, showCarbs:true,
+      habitProtein:'💪 Protein 25–35g at every meal', score:5 },
+    { days:30, label:'Month 3', title:'Month 3: deficit + 30–45 min walks',
+      sub:'Gentle deficit, walk 30–45 minutes daily, strength 2–3x/week.',
+      walk:'Walk 30–45 minutes today',
+      stepsHint:'Month 3 goal: 8,000–10,000 steps',
+      showSnack:true, showStrength:true, showCarbs:true,
+      habitProtein:'💪 Protein 25–35g at every meal', score:5 },
+    { days:30, label:'Month 4', title:'Month 4: sustaining',
+      sub:"Full routine. Walk 45 minutes daily, strength 3x/week. You've built this.",
+      walk:'Walk 45 minutes today',
+      stepsHint:'Month 4 goal: 10,000 steps daily',
+      showSnack:true, showStrength:true, showCarbs:true,
+      habitProtein:'💪 Protein 25–35g at every meal', score:5 },
+  ];
+
+  let phase = phases[phases.length - 1];
+  let cumulative = 0;
+  for (const p of phases) {
+    if (day < cumulative + p.days) { phase = p; break; }
+    cumulative += p.days;
   }
 
-  function shiftDay(dir) {
-    const d = new Date(activeKey);
-    d.setDate(d.getDate() + dir);
-    // Don't go into the future
-    if(d > today) return;
-    setActiveDate(d.toISOString().split('T')[0]);
+  // Header
+  const headerTag = document.querySelector('.header-tag');
+  const weekTitle = document.querySelector('.week-title');
+  const weekSub = document.querySelector('.week-sub');
+  if (headerTag) headerTag.textContent = phase.label;
+  if (weekTitle) weekTitle.textContent = phase.label;
+  if (weekSub) weekSub.textContent = phase.sub.split('.')[0];
+
+  // Focus card
+  const fp = document.getElementById('focusPhase');
+  const ft = document.getElementById('focusTitle');
+  const fs = document.getElementById('focusSub');
+  if (fp) fp.textContent = phase.label + ' · Day ' + (day + 1);
+  if (ft) ft.textContent = phase.title;
+  if (fs) fs.textContent = phase.sub;
+
+  // Dynamic habits
+  const hp = document.getElementById('habit_protein');
+  const hw = document.getElementById('habit_walk');
+  const sh = document.getElementById('stepsHint');
+  if (hp) hp.textContent = phase.habitProtein;
+  if (hw) hw.textContent = '🚶 ' + phase.walk;
+  if (sh) sh.textContent = phase.stepsHint;
+
+  // Show/hide optional habits
+  const snack = document.getElementById('snack_item');
+  const strength = document.getElementById('strength_item');
+  const carbs = document.getElementById('carbcheck_item');
+  if (snack) snack.style.display = phase.showSnack ? '' : 'none';
+  if (strength) strength.style.display = phase.showStrength ? '' : 'none';
+  if (carbs) carbs.style.display = phase.showCarbs ? '' : 'none';
+
+  // Score pill
+  const pill = document.getElementById('scorePill');
+  if (pill) {
+    const current = Object.values(checks).filter(Boolean).length;
+    pill.textContent = current + '/' + phase.score;
   }
 
-  function jumpToDate(val) {
-    if(!val) return;
-    const d = new Date(val);
-    if(d > today) return;
-    setActiveDate(val);
+  // Date picker
+  const dp = document.getElementById('dayPicker');
+  if (dp) { dp.value = activeKey; dp.max = todayKey; }
+
+  // Date display
+  const dd = document.getElementById('dateDisplay');
+  if (dd) {
+    const d2 = new Date(activeKey);
+    dd.textContent = d2.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long'});
   }
+}
 
-  // Start date logic
-  let startDate = localStorage.getItem('pp_start_date') || todayKey;
+function updateScore() {
+  const n = Object.values(checks).filter(Boolean).length;
+  const pill = document.getElementById('scorePill');
+  if (pill) pill.textContent = n + ' habits ✓';
+}
 
-  function updateStartDisplay() {
-    const d = new Date(startDate);
-    document.getElementById('startDateDisplay').textContent = d.toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
-  }
+// ── Navigation ────────────────────────────────────────────────────
+function shiftDay(dir) {
+  const d = new Date(activeKey);
+  d.setDate(d.getDate() + dir);
+  if (d > today) return;
+  setActiveDate(d.toISOString().split('T')[0]);
+}
 
-  function changeStartDate() {
-    const input = prompt('Enter your start date (YYYY-MM-DD, e.g. 2026-06-02):');
-    if (input && /^\d{4}-\d{2}-\d{2}$/.test(input)) {
-      startDate = input;
-      localStorage.setItem('pp_start_date', startDate);
-      updateStartDisplay();
-      updateWeekBar();
-    }
-  }
+function jumpToDate(val) {
+  if (!val) return;
+  const d = new Date(val);
+  if (d > today) return;
+  setActiveDate(val);
+}
 
-  function getDayNumber() {
-    const start = new Date(startDate);
-    const diff = Math.floor((new Date(activeKey) - start) / 86400000);
-    return Math.max(0, diff);
-  }
+function setActiveDate(dateStr) {
+  activeKey = dateStr;
+  checks = {};
+  formulaChecks = {};
 
-  function updateWeekBar() {
-    const day = getDayNumber();
+  // Clear habit ticks
+  document.querySelectorAll('.habit-item').forEach(el => el.classList.remove('checked'));
+  document.querySelectorAll('.check-item').forEach(el => el.classList.remove('checked'));
+  document.querySelectorAll('.formula-check').forEach(el => el.classList.remove('ticked'));
 
-    const phases = [
-      {
-        days:7, label:'Week 1', title:'This week: eat breakfast',
-        sub:'One habit only — eat breakfast within an hour of waking, that's the whole task',
-        walk:'Walk 5–10 minutes today — just start',
-        stepsHint:'Week 1 goal: just move. Even 5 minutes counts.',
-        showSnack:false, showStrength:false, showCarbs:false,
-        habitProtein:'💪 Protein at breakfast',
-        score:2
-      },
-      {
-        days:7, label:'Week 2', title:'This week: breakfast + lunch',
-        sub:'Two meals at normal times — eat before desperate, not at 3pm, not when shaking',
-        walk:'Walk 10 minutes today',
-        stepsHint:'Week 2 goal: 3,000–5,000 steps',
-        showSnack:false, showStrength:false, showCarbs:false,
-        habitProtein:'💪 Protein at breakfast and lunch',
-        score:3
-      },
-      {
-        days:7, label:'Week 3', title:'This week: three proper meals',
-        sub:'Breakfast, lunch and supper. No skipping. Carbs at every meal — non-negotiable.',
-        walk:'Walk 10–15 minutes today',
-        stepsHint:'Week 3 goal: 5,000 steps',
-        showSnack:false, showStrength:false, showCarbs:true,
-        habitProtein:'💪 Protein at every meal',
-        score:4
-      },
-      {
-        days:39, label:'Month 2', title:'Month 2: protein + water + walking',
-        sub:'25–35g protein per meal, 80–120oz water, walk 20–30 minutes daily and strength 1–2 times a week',
-        walk:'Walk 20–30 minutes today',
-        stepsHint:'Month 2 goal: 6,000–8,000 steps',
-        showSnack:true, showStrength:true, showCarbs:true,
-        habitProtein:'💪 Protein 25–35g at every meal',
-        score:5
-      },
-      {
-        days:30, label:'Month 3', title:'Month 3: deficit + 30–45 min walks',
-        sub:'Gentle deficit, walk 30–45 minutes daily, strength 2–3 times a week and gentle portion awareness',
-        walk:'Walk 30–45 minutes today — Zone 2 pace',
-        stepsHint:'Month 3 goal: 8,000–10,000 steps',
-        showSnack:true, showStrength:true, showCarbs:true,
-        habitProtein:'💪 Protein 25–35g at every meal',
-        score:5
-      },
-      {
-        days:30, label:'Month 4', title:'Month 4: sustaining',
-        sub:'Full routine. Walk 45 minutes daily, strength 3x/week. Meals consistent. You\'ve built this.',
-        walk:'Walk 45 minutes today',
-        stepsHint:'Month 4 goal: 10,000 steps daily',
-        showSnack:true, showStrength:true, showCarbs:true,
-        habitProtein:'💪 Protein 25–35g at every meal',
-        score:5
-      },
-    ];
+  // Clear meal fields
+  ['breakfast','lunch','supper'].forEach(m => {
+    const hidden = document.getElementById('meal_' + m);
+    if (hidden) hidden.value = '';
+    ['protein','carb','produce','pleasure'].forEach(cat => {
+      const fi = document.getElementById('meal_' + m + '_' + cat);
+      if (fi) fi.value = '';
+      const flag = document.getElementById('flag_' + m + '_' + cat);
+      if (flag) { flag.textContent = ''; flag.classList.remove('visible'); }
+    });
+  });
 
-    let phase = phases[phases.length-1];
-    let cumulative = 0;
-    for (const p of phases) {
-      if (day < cumulative + p.days) { phase = p; break; }
-      cumulative += p.days;
-    }
+  const stepsEl = document.getElementById('stepsInput');
+  if (stepsEl) stepsEl.value = '';
+  const winEl = document.getElementById('winInput');
+  if (winEl) winEl.value = '';
 
-    // Update header
-    document.querySelector('.header-tag').textContent = phase.label;
-    document.querySelector('.week-title').textContent = phase.label;
-    document.querySelector('.week-sub').textContent = phase.sub.split('.')[0];
-
-    // Update focus card
-    document.getElementById('focusPhase').textContent = phase.label + ' · Day ' + (day+1);
-    document.getElementById('focusTitle').textContent = phase.title;
-    document.getElementById('focusSub').textContent = phase.sub;
-
-    // Update dynamic habits
-    document.getElementById('habit_protein').textContent = phase.habitProtein;
-    document.getElementById('habit_walk').textContent = '🚶 ' + phase.walk;
-    document.getElementById('stepsHint').textContent = phase.stepsHint;
-
-    // Show/hide optional habits
-    document.getElementById('snack_item').style.display = phase.showSnack ? '' : 'none';
-    document.getElementById('strength_item').style.display = phase.showStrength ? '' : 'none';
-    document.getElementById('carbcheck_item').style.display = phase.showCarbs ? '' : 'none';
-
-    // Update score pill max
-    const scoreEl = document.getElementById('scorePill');
-    const currentScore = Object.values(checks).filter(Boolean).length;
-    scoreEl.textContent = currentScore + '/' + phase.score;
-  }
-
-  // Init
-  document.getElementById('dayPicker').value = todayKey;
-  document.getElementById('dayPicker').max = todayKey;
-  document.getElementById('dateDisplay').textContent = today.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
-  updateStartDisplay();
+  updateSteps(0);
   updateWeekBar();
+  loadDay(dateStr);
+}
 
+// ── Tabs ──────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+  const activeTab = document.querySelector('.tab[data-tab="' + tab + '"]');
+  const activeContent = document.getElementById('tab_' + tab);
+  if (activeTab) activeTab.classList.add('active');
+  if (activeContent) activeContent.style.display = '';
+  if (tab === 'history') renderHistory();
+}
 
-  // ── Food category validator ──────────────────────────────────────
-  const foodMap = {
-    // PROTEINS
-    protein: ['egg','eggs','chicken','turkey','beef','lamb','mince','salmon','tuna','sardine','cod','haddock',
-              'prawn','shrimp','yoghurt','yogurt','cottage cheese','quark','ricotta','feta','cheese',
-              'protein shake','protein powder','tofu','tempeh','edamame','lentil','lentils','chickpea',
-              'chickpeas','black bean','kidney bean','beans','schnitzel','fish','meat','steak',
-              'greek yoghurt','greek yogurt','skyr'],
-    // CARBS (includes fruit — Lauren counts fruit as carb)
-    carb: ['bread','toast','oats','oatmeal','granola','bagel','wrap','pitta','pita','rice','pasta',
-           'potato','potatoes','sweet potato','noodles','cereal','quinoa','couscous','challah',
-           'banana','apple','orange','grapes','mango','pear','melon','watermelon','berries',
-           'strawberry','strawberries','blueberry','blueberries','raspberry','raspberries',
-           'fruit','cracker','crackers','corn','tortilla','waffle','pancake','porridge','rye'],
-    // PRODUCE (vegetables only — NOT fruit)
-    produce: ['spinach','kale','lettuce','salad','cucumber','tomato','tomatoes','pepper','peppers',
-              'broccoli','cauliflower','courgette','zucchini','green bean','green beans','peas',
-              'carrot','carrots','celery','onion','garlic','mushroom','mushrooms','aubergine',
-              'eggplant','cabbage','asparagus','leek','leeks','rocket','arugula','watercress',
-              'beetroot','beet','radish','fennel','coleslaw','veg','vegetables','greens'],
-    // PLEASURE
-    pleasure: ['jam','jelly','honey','chocolate','nutella','peanut butter','almond butter','sauce',
-               'ketchup','mayo','mayonnaise','hummus','dressing','syrup','cream','butter',
-               'coffee','tea','crisps','chips','biscuit','cookie','cake','dessert','ice cream',
-               'spread','tahini','harissa','pesto','chutney','relish','gravy','sweet','treat']
-  };
+// ── Habits ────────────────────────────────────────────────────────
+function toggleCheck(el) {
+  el.classList.toggle('checked');
+  checks[el.dataset.key] = el.classList.contains('checked');
+  updateScore();
+}
 
-  // Lauren-specific overrides — foods commonly put in wrong box
-  const flagMessages = {
-    // Fruit in produce box
-    produce_banana: 'Lauren counts banana as a carb, not produce 🍌',
-    produce_apple: 'Lauren counts apple as a carb, not produce 🍎',
-    produce_orange: 'Lauren counts orange as a carb, not produce 🍊',
-    produce_berries: 'Lauren counts berries as a carb, not produce 🍓',
-    produce_strawberries: 'Lauren counts strawberries as a carb, not produce 🍓',
-    produce_blueberries: 'Lauren counts blueberries as a carb, not produce 🫐',
-    produce_raspberries: 'Lauren counts raspberries as a carb, not produce 🍓',
-    produce_grapes: 'Lauren counts grapes as a carb, not produce 🍇',
-    produce_mango: 'Lauren counts mango as a carb, not produce 🥭',
-    produce_fruit: 'Lauren counts fruit as a carb, not produce 🍎',
-    // Cheese/yoghurt as produce or carb
-    carb_yoghurt: 'Yoghurt is protein, not a carb 💪',
-    carb_yogurt: 'Yoghurt is protein, not a carb 💪',
-    carb_cheese: 'Cheese counts as protein here 💪',
-    produce_yoghurt: 'Yoghurt is protein, not produce 💪',
-    produce_cheese: 'Cheese counts as protein here 💪',
-    // Peanut butter
-    carb_peanut: 'Peanut butter is pleasure (or protein), not a carb ✨',
-    protein_peanut: 'Peanut butter works best in the pleasure box ✨',
-    // Hummus
-    protein_hummus: 'Hummus fits better in pleasure or produce, not protein 🫘',
-    carb_hummus: 'Hummus fits better in pleasure, not carb ✨',
-  };
+// ── Meal fields ───────────────────────────────────────────────────
+function syncMealField(meal) {
+  const parts = ['protein','carb','produce','pleasure'].map(cat => {
+    const el = document.getElementById('meal_' + meal + '_' + cat);
+    return el && el.value.trim() ? el.value.trim() : '';
+  }).filter(Boolean);
+  const hidden = document.getElementById('meal_' + meal);
+  if (hidden) hidden.value = parts.join(' | ');
+}
 
-  function checkFood(meal, cat, value) {
-    const flagEl = document.getElementById('flag_' + meal + '_' + cat);
-    if (!flagEl) return;
-    const v = value.toLowerCase().trim();
-    if (!v) { flagEl.textContent = ''; flagEl.classList.remove('visible'); return; }
+function setMealFields(meal, combined) {
+  if (!combined) return;
+  const parts = combined.split(' | ');
+  const cats = ['protein','carb','produce','pleasure'];
+  parts.forEach((val, i) => {
+    if (cats[i]) {
+      const el = document.getElementById('meal_' + meal + '_' + cats[i]);
+      if (el) el.value = val;
+    }
+  });
+}
 
-    // Check specific override messages first
-    for (const [key, msg] of Object.entries(flagMessages)) {
-      const [flagCat, flagWord] = key.split('_');
-      if (flagCat === cat && v.includes(flagWord)) {
-        flagEl.textContent = '⚠️ ' + msg;
-        flagEl.classList.add('visible');
+function toggleFormula(el, meal, cat) {
+  el.classList.toggle('ticked');
+  formulaChecks[meal + '_' + cat] = el.classList.contains('ticked');
+}
+
+// ── Steps ─────────────────────────────────────────────────────────
+function updateSteps(v) {
+  const n = parseInt(v) || 0;
+  const goal = 10000;
+  const pct = Math.min(100, (n / goal) * 100);
+  const bar = document.getElementById('stepsBar');
+  if (bar) bar.style.width = pct + '%';
+}
+
+// ── Food validator ────────────────────────────────────────────────
+const foodRules = {
+  // fruit in produce box
+  produce: {
+    'banana':'Lauren counts banana as a carb, not produce 🍌',
+    'apple':'Lauren counts apple as a carb, not produce 🍎',
+    'orange':'Lauren counts orange as a carb, not produce 🍊',
+    'berries':'Lauren counts berries as a carb, not produce 🍓',
+    'blueberr':'Lauren counts blueberries as a carb, not produce 🫐',
+    'strawberr':'Lauren counts strawberries as a carb, not produce 🍓',
+    'raspberr':'Lauren counts raspberries as a carb, not produce 🍓',
+    'grapes':'Lauren counts grapes as a carb, not produce 🍇',
+    'mango':'Lauren counts mango as a carb, not produce 🥭',
+    'melon':'Lauren counts melon as a carb, not produce 🍈',
+    'fruit':'Lauren counts fruit as a carb, not produce 🍎',
+    'peach':'Lauren counts peach as a carb, not produce 🍑',
+    'pear':'Lauren counts pear as a carb, not produce 🍐',
+  },
+  carb: {
+    'yoghurt':'Yoghurt is protein, not a carb 💪',
+    'yogurt':'Yoghurt is protein, not a carb 💪',
+    'cottage cheese':'Cottage cheese is protein, not a carb 💪',
+    'skyr':'Skyr is protein, not a carb 💪',
+    'peanut butter':'Peanut butter goes in pleasure, not carb ✨',
+    'almond butter':'Almond butter goes in pleasure, not carb ✨',
+  },
+  protein: {
+    'bread':'Bread is a carb, not protein 🌾',
+    'toast':'Toast is a carb, not protein 🌾',
+    'banana':'Banana is a carb, not protein 🍌',
+    'peanut butter':'Peanut butter goes in pleasure, not protein ✨',
+    'hummus':'Hummus goes in pleasure, not protein ✨',
+    'oats':'Oats are a carb, not protein 🌾',
+  },
+};
+
+function checkFood(meal, cat, value) {
+  const flag = document.getElementById('flag_' + meal + '_' + cat);
+  if (!flag) return;
+  const v = value.toLowerCase().trim();
+  if (!v) { flag.textContent = ''; flag.classList.remove('visible'); return; }
+  const rules = foodRules[cat];
+  if (rules) {
+    for (const [word, msg] of Object.entries(rules)) {
+      if (v.includes(word)) {
+        flag.textContent = '⚠️ ' + msg;
+        flag.classList.add('visible');
         return;
       }
     }
-
-    // Check if the food belongs in a DIFFERENT category
-    for (const [otherCat, foods] of Object.entries(foodMap)) {
-      if (otherCat === cat) continue;
-      for (const food of foods) {
-        if (v.includes(food)) {
-          const catNames = {protein:'💪 protein',carb:'🌾 carb',produce:'🥗 produce',pleasure:'✨ pleasure'};
-          flagEl.textContent = `⚠️ "${food}" usually goes in ${catNames[otherCat]}`;
-          flagEl.classList.add('visible');
-          return;
-        }
-      }
-    }
-
-    // No issue
-    flagEl.textContent = ''; flagEl.classList.remove('visible');
   }
-  // ─────────────────────────────────────────────────────────────────
-  function updateScore(){
-    const n=Object.values(checks).filter(Boolean).length;
-    const msgs=['','keep going!','doing great!','halfway there!','almost there!','crushing it! \uD83C\uDF89'];
-    const pillEl=document.getElementById('scorePill');
-    if(pillEl) pillEl.textContent=n+' habits \u2713';
-  }
-
-  let formulaChecks = {};
-
-  function syncMealField(meal) {
-    // Combine all four fields into the hidden meal input for saving
-    const parts = ['protein','carb','produce','pleasure'].map(cat => {
-      const val = document.getElementById('meal_'+meal+'_'+cat)?.value?.trim();
-      return val ? cat+': '+val : '';
-    }).filter(Boolean);
-    const hidden = document.getElementById('meal_'+meal);
-    if(hidden) hidden.value = parts.join(' | ');
-  }
-
-  function setMealFields(meal, value) {
-    // Parse saved value back into fields
-    if(!value) return;
-    const parts = value.split(' | ');
-    parts.forEach(part => {
-      const [cat, ...rest] = part.split(': ');
-      const val = rest.join(': ');
-      const el = document.getElementById('meal_'+meal+'_'+cat);
-      if(el) el.value = val;
-    });
-  } // {breakfast_protein: true, lunch_carb: false, ...}
-
-  function toggleFormula(el, meal, cat) {
-    const key = meal+'_'+cat;
-    const ticked = el.classList.toggle('ticked');
-    formulaChecks[key] = ticked;
-  }
-
-  function autoTickFormula(meal, found) {
-    ['protein','carb','produce'].forEach(cat=>{
-      const key = meal+'_'+cat;
-      const el = document.querySelector(`.formula-check[data-meal="${meal}"][data-cat="${cat}"]`);
-      if(!el) return;
-      if(found[cat] && found[cat].length > 0){
-        el.classList.add('ticked');
-        formulaChecks[key] = true;
-      }
-    });
-  }
-
-  function toggleCheck(el){
-    el.classList.toggle('checked');
-    checks[el.dataset.key]=el.classList.contains('checked');
-    updateScore();
-  }
-
-  function updateSteps(v){
-    document.getElementById('stepsBar').style.width=Math.min((parseInt(v)||0)/10000*100,100)+'%';
-  }
-
-  const flavourNoise=['flavour','flavor','flavoured','flavored','style','variety','organic',
-    'free range','unsweetened','sweetened','low fat','full fat','semi skimmed','skimmed',
-    'reduced fat','light','original','natural','plain','vanilla','strawberry','banana',
-    'blueberry','raspberry','mango','cherry','peach','lemon','lime','caramel','salted',
-    'smoked','spiced','herb','barista','alpro','oatly','muller','fage','chobani','danone',
-    'yoplait','innocent','kelloggs','quaker','tesco','sainsburys','waitrose','aldi','lidl',
-    'marks','spencer','asda','morrisons','ocado','holland','barrett',
-    'and','with','in','on','a','the','of','some','little','pieces','piece',
-    'slices','slice','portions','portion','tbsp','tsp','handful','bowl','plate',
-    'small','medium','large','big','topped','served','side','extra','added'];
-
-  const lowProteinSources=['soya yoghurt','soya yogurt','plant yoghurt','plant yogurt',
-    'coconut yoghurt','coconut yogurt','alpro yoghurt','alpro yogurt',
-    'soy yoghurt','soy yogurt','oat milk','almond milk','rice milk','oat drink'];
-
-  const strongProteinKeys=['egg','eggs','chicken','turkey','salmon','tuna','fish','beef',
-    'lamb','mince','steak','shrimp','prawns','prawn','greek yogurt','greek yoghurt',
-    'cottage cheese','skyr','kefir','quark','protein shake','protein powder','protein bar',
-    'nugo','grenade','fulfil','quest','rxbar','whey','casein','tofu','tempeh','halloumi',
-    'cheese','cheddar','mozzarella','feta','gouda','parmesan','lentils','chickpeas','edamame'];
-
-  const foodMap={
-    // PROTEIN BARS & SHAKES
-    'protein bar':'protein','protein shake':'protein','protein powder':'protein',
-    'protein cereal':'protein','protein yogurt':'protein','protein yoghurt':'protein',
-    'protein ball':'protein','protein balls':'protein','protein pancakes':'protein',
-    'protein waffle':'protein','protein waffles':'protein','protein cookie':'protein',
-    'protein pudding':'protein','protein mousse':'protein','protein fluff':'protein',
-    'nugo bar':'protein','nugo slim':'protein','nugo':'protein',
-    'grenade bar':'protein','grenade':'protein',
-    'fulfil bar':'protein','fulfil':'protein',
-    'quest bar':'protein','quest':'protein',
-    'rxbar':'protein','rx bar':'protein',
-    'kind bar':'protein','clif bar':'protein',
-    'trek bar':'protein','trek':'protein',
-    'nakd bar':'protein','nakd':'protein',
-    'myprotein bar':'protein','slim bar':'protein',
-    'whey':'protein','casein':'protein','bcaa':'protein',
-    // EGGS
-    'egg whites':'protein','egg white':'protein','scrambled eggs':'protein',
-    'fried eggs':'protein','poached eggs':'protein','boiled eggs':'protein',
-    'hard boiled egg':'protein','soft boiled egg':'protein',
-    'omelette':'protein','frittata':'protein','egg muffins':'protein','egg bites':'protein',
-    egg:'protein',eggs:'protein',
-    // DAIRY
-    'greek yogurt':'protein','greek yoghurt':'protein','cottage cheese':'protein',
-    'quark':'protein','skyr':'protein','kefir':'protein','fromage frais':'protein',
-    'low fat yogurt':'protein','low fat yoghurt':'protein',
-    yogurt:'protein',yoghurt:'protein',fromage:'protein',
-    cheese:'protein',cheddar:'protein',mozzarella:'protein',feta:'protein',
-    halloumi:'protein',brie:'protein',gouda:'protein',parmesan:'protein',
-    camembert:'protein',stilton:'protein',ricotta:'protein',paneer:'protein',
-    milk:'protein',
-    // PLANT PROTEIN (low — flagged if alone)
-    'soya yoghurt':'protein','soya yogurt':'protein',
-    'soy yoghurt':'protein','soy yogurt':'protein',
-    'plant yoghurt':'protein','plant yogurt':'protein',
-    'coconut yoghurt':'protein','coconut yogurt':'protein',
-    'soya milk':'protein','soy milk':'protein',
-    soya:'protein',tofu:'protein',tempeh:'protein',edamame:'protein',
-    // MEAT & FISH
-    'chicken breast':'protein','roast chicken':'protein','rotisserie chicken':'protein',
-    'chicken thigh':'protein','chicken thighs':'protein','chicken wings':'protein',
-    'chicken fillet':'protein','chicken fillets':'protein','diced chicken':'protein',
-    'ground turkey':'protein','turkey mince':'protein','turkey breast':'protein',
-    'turkey bacon':'protein','turkey sausage':'protein','turkey slices':'protein',
-    'deli turkey':'protein','turkey rashers':'protein',
-    'ground beef':'protein','beef mince':'protein','lean mince':'protein',
-    'minced beef':'protein','minced turkey':'protein','mince meat':'protein',
-    'salmon fillet':'protein','smoked salmon':'protein','tinned salmon':'protein',
-    'tinned tuna':'protein','tuna steak':'protein','tuna chunks':'protein','tuna flakes':'protein',
-    'cod fillet':'protein','haddock':'protein','tilapia':'protein','sea bass':'protein',
-    'sea bream':'protein','mackerel':'protein','sardines':'protein','anchovies':'protein',
-    'king prawns':'protein','tiger prawns':'protein',
-    'pork loin':'protein','pork chop':'protein','pork tenderloin':'protein',
-    'ham slices':'protein','deli ham':'protein','parma ham':'protein','serrano ham':'protein',
-    'beef steak':'protein','sirloin':'protein','ribeye':'protein','fillet steak':'protein',
-    'lamb chop':'protein','lamb mince':'protein','lamb fillet':'protein',
-    chicken:'protein',turkey:'protein',salmon:'protein',tuna:'protein',
-    fish:'protein',beef:'protein',lamb:'protein',mince:'protein',steak:'protein',
-    shrimp:'protein',prawns:'protein',prawn:'protein',pork:'protein',
-    ham:'protein',bacon:'protein',sausage:'protein',sausages:'protein',
-    // PLANT PROTEIN LEGUMES
-    lentils:'protein',chickpeas:'protein',beans:'protein',
-    'black beans':'protein','kidney beans':'protein','butter beans':'protein',
-    'cannellini beans':'protein','baked beans':'protein','pinto beans':'protein',
-    'mixed beans':'protein','borlotti beans':'protein','edamame beans':'protein',
-    // CARBS — DRINKS (before 'milk' matches above)
-    'oat milk':'carb','oat drink':'carb','almond milk':'carb','rice milk':'carb',
-    'oat barista':'carb',
-    // CARBS — BREAD & GRAINS
-    'sourdough bread':'carb','white bread':'carb','brown bread':'carb',
-    'wholemeal bread':'carb','wholegrain bread':'carb','rye bread':'carb',
-    'seeded bread':'carb','pitta bread':'carb','naan bread':'carb',
-    'high protein bread':'carb','gluten free bread':'carb',
-    'bread roll':'carb','bread rolls':'carb',
-    'high protein tortilla':'carb','low carb tortilla':'carb','corn tortilla':'carb',
-    'flour tortilla':'carb','wholemeal wrap':'carb','protein wrap':'carb',
-    'brown rice':'carb','white rice':'carb','basmati rice':'carb',
-    'jasmine rice':'carb','wild rice':'carb','microwave rice':'carb',
-    'rice pouch':'carb','rice packet':'carb',
-    'sweet potato':'carb','sweet potatoes':'carb',
-    'rice cake':'carb','rice cakes':'carb','corn cake':'carb','corn cakes':'carb',
-    'corn thins':'carb','rice thins':'carb','oat cakes':'carb','oatcakes':'carb',
-    'ryvita':'carb','crispbread':'carb',
-    'protein pasta':'carb','lentil pasta':'carb','chickpea pasta':'carb',
-    'wholemeal pasta':'carb',
-    // CARBS — SMOOTHIE
-    'berry mix':'carb','berry smoothie':'carb','fruit mix':'carb',
-    'frozen berries':'carb','frozen fruit':'carb','smoothie mix':'carb',
-    'smoothie pouch':'carb','fruit pouch':'carb','green smoothie':'carb',
-    smoothie:'carb',
-    // CARBS — SINGLE WORD
-    toast:'carb',bread:'carb',sourdough:'carb',wrap:'carb',tortilla:'carb',
-    pitta:'carb',pita:'carb',naan:'carb',
-    rice:'carb',pasta:'carb',oats:'carb',oatmeal:'carb',porridge:'carb',
-    granola:'carb',muesli:'carb',
-    potato:'carb',potatoes:'carb',crackers:'carb',cracker:'carb',
-    quinoa:'carb',cereal:'carb',bagel:'carb',
-    noodles:'carb',couscous:'carb',polenta:'carb',bulgur:'carb',
-    chapati:'carb',chapatti:'carb',roti:'carb',flatbread:'carb',
-    // CARBS — FRUIT
-    'dried mango':'carb','dried apricot':'carb','dried cranberries':'carb',
-    'mixed berries':'carb','fruit salad':'carb','medjool dates':'carb',
-    banana:'carb',apple:'carb',grapes:'carb',mango:'carb',orange:'carb',
-    berries:'carb',blueberries:'carb',strawberries:'carb',raspberries:'carb',
-    blackberries:'carb',melon:'carb',watermelon:'carb',cantaloupe:'carb',
-    peach:'carb',pear:'carb',plum:'carb',fruit:'carb',dates:'carb',honey:'carb',
-    tangerine:'carb',clementine:'carb',pomegranate:'carb',kiwi:'carb',
-    pineapple:'carb',papaya:'carb',lychee:'carb',
-    cherries:'carb',cherry:'carb',fig:'carb',figs:'carb',
-    grapefruit:'carb',nectarine:'carb',apricot:'carb',
-    // PRODUCE
-    'green beans':'produce','bell pepper':'produce','mixed greens':'produce',
-    'spring onion':'produce','spring onions':'produce','pak choi':'produce',
-    'baby spinach':'produce','cherry tomatoes':'produce','sun dried tomatoes':'produce',
-    'mixed salad':'produce','salad leaves':'produce','rocket leaves':'produce',
-    'mixed veg':'produce','frozen veg':'produce','stir fry veg':'produce',
-    spinach:'produce',lettuce:'produce',kale:'produce',salad:'produce',
-    broccoli:'produce',peas:'produce',courgette:'produce',zucchini:'produce',
-    cucumber:'produce',tomato:'produce',tomatoes:'produce',peppers:'produce',
-    pepper:'produce',carrots:'produce',carrot:'produce',celery:'produce',
-    mushrooms:'produce',mushroom:'produce',onion:'produce',garlic:'produce',
-    avocado:'produce',cabbage:'produce',asparagus:'produce',cauliflower:'produce',
-    corn:'produce',leek:'produce',beetroot:'produce',beet:'produce',
-    cress:'produce',rocket:'produce',watercress:'produce',radish:'produce',
-    radishes:'produce',artichoke:'produce',fennel:'produce',turnip:'produce',
-    parsnip:'produce',swede:'produce',chard:'produce',
-    endive:'produce',chicory:'produce',okra:'produce',aubergine:'produce',
-    eggplant:'produce',squash:'produce',butternut:'produce',pumpkin:'produce',
-    tenderstem:'produce',mangetout:'produce',sugarsnap:'produce',
-    // FAT
-    'peanut butter':'fat','almond butter':'fat','nut butter':'fat','cashew butter':'fat',
-    'sunflower butter':'fat','seed butter':'fat',
-    'olive oil':'fat','coconut oil':'fat','avocado oil':'fat','rapeseed oil':'fat',
-    'chia seeds':'fat','flax seeds':'fat','hemp seeds':'fat','pumpkin seeds':'fat',
-    'sunflower seeds':'fat','sesame seeds':'fat',
-    'mixed nuts':'fat','trail mix':'fat',
-    butter:'fat',nuts:'fat',almonds:'fat',walnuts:'fat',cashews:'fat',
-    pistachios:'fat',pecans:'fat',macadamia:'fat',hazelnuts:'fat',
-    tahini:'fat',seeds:'fat',hummus:'fat',oil:'fat',peanuts:'fat',
-    ghee:'fat',lard:'fat',
-    // OTHER / TREATS
-    'dark chocolate':'other','milk chocolate':'other','white chocolate':'other',
-    'ice cream':'other','frozen yogurt':'other','sorbet':'other',
-    'soy sauce':'other','hot sauce':'other','bbq sauce':'other',
-    'tomato sauce':'other','pasta sauce':'other','pesto':'other',
-    chocolate:'other',cookie:'other',cookies:'other',biscuit:'other',biscuits:'other',
-    brownie:'other',cake:'other',sauce:'other',salsa:'other',
-    dressing:'other',mayo:'other',mustard:'other',ketchup:'other',
-    crisps:'other',chips:'other',sweets:'other',candy:'other',
-    jam:'other',spread:'other',syrup:'other',sugar:'other',
-    coffee:'other',tea:'other',water:'other',
-    // ADDITIONAL PROTEIN
-    'string cheese':'protein','babybel':'protein','laughing cow':'protein',
-    'deli chicken':'protein','chicken slice':'protein','chicken slices':'protein',
-    'beef jerky':'protein','turkey jerky':'protein','jerky':'protein',
-    'smoked chicken':'protein','canned chicken':'protein',
-    'canned tuna':'protein','canned salmon':'protein','canned sardines':'protein',
-    'fish fingers':'protein','fish cakes':'protein','fishcakes':'protein',
-    'chicken nuggets':'protein','schnitzel':'protein',
-    'meatballs':'protein','meatball':'protein','burger':'protein','burgers':'protein',
-    'sausage roll':'protein','frank':'protein','frankfurter':'protein','hotdog':'protein',
-    'deli meat':'protein','cold cuts':'protein','lunch meat':'protein',
-    'hard boiled':'protein','soft boiled':'protein',
-    'shakshuka':'protein','omelette':'protein','frittata':'protein',
-    'protein fluff':'protein','anabolic ice cream':'protein',
-    'low fat cottage cheese':'protein','fat free cottage cheese':'protein',
-    'goat cheese':'protein','goats cheese':'protein','labneh':'protein',
-    'whipped cottage cheese':'protein',
-    // ADDITIONAL CARBS
-    'pita chips':'carb','pretzels':'carb','pretzel':'carb',
-    'rice cracker':'carb','rice crackers':'carb',
-    'protein oats':'carb','overnight oats':'carb','baked oats':'carb',
-    'french toast':'carb','pancakes':'carb','pancake':'carb','waffle':'carb','waffles':'carb',
-    'muffin':'carb','english muffin':'carb','crumpet':'carb','crumpets':'carb',
-    'croissant':'carb','brioche':'carb','challah':'carb','pita':'carb',
-    'matza':'carb','matzah':'carb','matzo':'carb','crackers':'carb',
-    'popcorn':'carb','corn chips':'carb',
-    'pasta salad':'carb','rice salad':'carb','grain salad':'carb','grain bowl':'carb',
-    'sushi rice':'carb','sushi':'carb','nori':'other',
-    'farro':'carb','spelt':'carb','amaranth':'carb','teff':'carb',
-    'plantain':'carb','yuca':'carb','cassava':'carb',
-    'cereal bar':'carb','granola bar':'carb','oat bar':'carb',
-    'fruit juice':'carb','apple juice':'carb','orange juice':'carb','grape juice':'carb',
-    'smoothie bowl':'carb','acai bowl':'carb','acai':'carb',
-    // ADDITIONAL PRODUCE
-    'mixed leaves':'produce','spring mix':'produce','baby leaves':'produce',
-    'cos lettuce':'produce','romaine':'produce','iceberg':'produce','gem lettuce':'produce',
-    'little gem':'produce','butter lettuce':'produce',
-    'sun dried tomato':'produce','roasted peppers':'produce','roasted tomatoes':'produce',
-    'edamame beans':'produce',
-    'bean sprouts':'produce','beansprouts':'produce','sprouts':'produce',
-    'raw veg':'produce','crudites':'produce','crudités':'produce',
-    'coleslaw':'produce','sauerkraut':'produce','kimchi':'produce',
-    'jalapeño':'produce','jalapeno':'produce','chilli':'produce','chili':'produce',
-    'ginger':'produce','turmeric':'produce','herbs':'produce','basil':'produce',
-    'coriander':'produce','parsley':'produce','dill':'produce','mint':'produce',
-    'lemon':'produce','lime':'produce','orange':'produce',
-    // ADDITIONAL FAT
-    'avocado toast':'fat','guacamole':'fat','guac':'fat',
-    'mixed seeds':'fat','seed mix':'fat',
-    'coconut cream':'fat','coconut milk':'fat',
-    'pine nuts':'fat','sunflower oil':'fat','vegetable oil':'fat',
-    'spread':'fat','margarine':'fat',
-    // MEAL COMBOS (common full meals)
-    'chicken salad':'protein','tuna salad':'protein','egg salad':'protein',
-    'chicken wrap':'protein','tuna wrap':'protein','turkey wrap':'protein',
-    'chicken bowl':'protein','rice bowl':'carb','burrito bowl':'protein',
-    'stir fry':'protein','stir-fry':'protein',
-    'oat porridge':'carb','chia pudding':'fat','chia pot':'fat',
-    'greek salad':'produce','caesar salad':'produce',
-    'soup':'other','chicken soup':'protein','lentil soup':'protein','vegetable soup':'produce',
-    'bone broth':'protein','broth':'protein',
-  };
-
-  async function categorise(meal){
-    const raw=document.getElementById('meal_'+meal).value.trim();
-    if(!raw)return;
-    const input=raw.toLowerCase();
-    const tagsEl=document.getElementById('tags_'+meal);
-    const missingEl=document.getElementById('missing_'+meal);
-    tagsEl.innerHTML='';missingEl.innerHTML='';
-
-    // Show loading state
-    const loadTag=document.createElement('span');
-    loadTag.className='tag other';
-    loadTag.textContent='Categorising...';
-    tagsEl.appendChild(loadTag);
-
-    const tokens=input.split(/[,+\/\n]+/).map(t=>t.trim()).filter(Boolean);
-
-    // First pass: local dictionary
-    const found={protein:[],carb:[],produce:[],fat:[],other:[]};
-    const unmatched=[];
-    const sortedKeys=Object.keys(foodMap).sort((a,b)=>b.length-a.length);
-    const lowProteinFound=[];
-
-    tokens.forEach(token=>{
-      let cleaned=token;
-      flavourNoise.forEach(noise=>{cleaned=cleaned.replace(new RegExp('\\b'+noise+'\\b','g'),' ');});
-      cleaned=cleaned.replace(/\s+/g,' ').trim();
-      let matched=false;
-      for(const key of sortedKeys){
-        if(cleaned.includes(key)||token.includes(key)){
-          found[foodMap[key]].push(token);
-          if(foodMap[key]==='protein'){
-            const isLow=lowProteinSources.some(lp=>token.includes(lp)||cleaned.includes(lp));
-            if(isLow)lowProteinFound.push(token);
-          }
-          matched=true;break;
-        }
-      }
-      if(!matched){
-        const words=cleaned.split(/\s+/);
-        for(const word of words){
-          if(word.length<3)continue;
-          for(const key of sortedKeys){
-            if(word===key||word.startsWith(key)){
-              found[foodMap[key]].push(token);matched=true;break;
-            }
-          }
-          if(matched)break;
-        }
-      }
-      if(!matched)unmatched.push(token);
-    });
-
-    // Second pass: send unmatched to Claude API
-    if(unmatched.length>0){
-      try{
-        const prompt=`Categorise each of these foods into exactly one of: protein, carb, produce, fat, other.
-Foods: ${unmatched.join(', ')}
-Reply ONLY with valid JSON like: {"food name":"category","food name":"category"}
-Categories: protein=meat/fish/eggs/dairy/legumes, carb=grains/bread/fruit/starchy veg, produce=non-starchy veg/salad, fat=oils/nuts/nut butter/avocado, other=condiments/treats/drinks`;
-
-        const resp=await fetch('https://api.anthropic.com/v1/messages',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({
-            model:'claude-sonnet-4-20250514',
-            max_tokens:300,
-            messages:[{role:'user',content:prompt}]
-          })
-        });
-        const data=await resp.json();
-        const text=data.content?.[0]?.text||'{}';
-        const json=JSON.parse(text.replace(/```json|```/g,'').trim());
-        Object.entries(json).forEach(([food,cat])=>{
-          const validCat=['protein','carb','produce','fat','other'].includes(cat)?cat:'other';
-          // Find the matching unmatched token
-          const match=unmatched.find(u=>u.includes(food.toLowerCase())||food.toLowerCase().includes(u))||food;
-          found[validCat].push(match);
-          unmatched.splice(unmatched.indexOf(match),1);
-        });
-      }catch(e){
-        // If API fails, put unmatched in other
-        unmatched.forEach(u=>found.other.push(u));
-      }
-    }
-
-    // Render tags
-    tagsEl.innerHTML='';
-    const icons={protein:'Protein',carb:'Carb',produce:'Produce',fat:'Fat',other:'Other'};
-    Object.entries(found).forEach(([cat,items])=>{
-      items.forEach(item=>{
-        const tag=document.createElement('span');
-        tag.className='tag '+cat;
-        tag.textContent=item+' \u00B7 '+icons[cat];
-        tagsEl.appendChild(tag);
-      });
-    });
-
-    // Plate formula checker
-    const formulaEl = document.getElementById('formula_'+meal);
-    const formulaPills = document.getElementById('formula_pills_'+meal);
-    if(formulaEl && formulaPills){
-      formulaEl.style.display='block';
-      formulaPills.innerHTML='';
-      const checks_formula = [
-        {key:'protein', label:'Protein', icon:'💪', present: found.protein.length > 0},
-        {key:'carb', label:'Carb', icon:'🌾', present: found.carb.length > 0},
-        {key:'produce', label:'Produce', icon:'🥦', present: found.produce.length > 0},
-        {key:'other', label:'Pleasure', icon:'✨', present: found.other.length > 0 || found.fat.length > 0},
-      ];
-      checks_formula.forEach(c=>{
-        const pill=document.createElement('span');
-        pill.style.cssText=`border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;${c.present?'background:var(--green);color:white;':'background:#f5e6e0;color:#c4a090;text-decoration:line-through;'}`;
-        pill.textContent=c.icon+' '+c.label;
-        formulaPills.appendChild(pill);
-      });
-    }
-
-    // Auto-tick formula boxes based on what was found
-    autoTickFormula(meal, found);
-
-    // Warnings
-    const strongProteinKeys=['egg','eggs','chicken','turkey','salmon','tuna','fish','beef','lamb',
-      'mince','steak','shrimp','prawns','prawn','greek yogurt','greek yoghurt','cottage cheese',
-      'skyr','kefir','quark','protein shake','protein powder','protein bar','protein cereal',
-      'tofu','tempeh','halloumi','cheese','cheddar','mozzarella','feta','gouda','parmesan'];
-    const hasStrongProtein=strongProteinKeys.some(k=>input.includes(k));
-    const missing=[];
-    if(!found.protein.length)missing.push({text:'No protein \u2014 add eggs, cottage cheese or a protein shake',warn:true});
-    if(!found.carb.length)missing.push({text:'No carb spotted',warn:true});
-    if(!found.produce.length)missing.push({text:'No produce spotted',warn:false});
-    if(lowProteinFound.length&&found.protein.length&&!hasStrongProtein){
-      missing.push({text:'Low-protein source spotted \u2014 pair with eggs, cottage cheese or protein powder to hit 25\u201335g',warn:true});
-    }
-    const hasSmoothie=input.includes('smoothie')||input.includes('berry mix')||input.includes('oat milk');
-    if(hasSmoothie&&!hasStrongProtein&&!found.protein.length){
-      missing.push({text:'Smoothie tip: add protein powder, Greek yoghurt or cottage cheese on the side to reach 25\u201335g protein',warn:true});
-    }
-    missing.forEach(m=>{
-      const tag=document.createElement('span');
-      tag.className='missing-tag';
-      tag.textContent='\u26A0 '+m.text;
-      missingEl.appendChild(tag);
-    });
-  }
-
-  // ── PERSISTENT STORAGE — uses window.storage API (persists across sessions) ──
-  let allData = {};
-
-  async function loadData() {
-    try {
-      const result = await window.storage.get('pp_daily');
-      return result ? JSON.parse(result.value) : {};
-    } catch(e) {
-      // Key doesn't exist yet or fallback to localStorage
-      return JSON.parse(localStorage.getItem('pp_daily') || '{}');
-    }
-  }
-
-  async function saveData(entries) {
-    localStorage.setItem('pp_daily', JSON.stringify(entries));
-    try {
-      await window.storage.set('pp_daily', JSON.stringify(entries));
-    } catch(e) {
-      console.warn('Storage save failed, saved locally only:', e);
-    }
-  }
-
-  function switchTab(tab){
-    document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',(tab==='today'&&i===0)||(tab==='history'&&i===1)));
-    document.getElementById('tab-today').classList.toggle('active',tab==='today');
-    document.getElementById('tab-history').classList.toggle('active',tab==='history');
-    if(tab==='history')renderHistory();
-  }
-
-  async function saveDay(){
-    const entry={
-      date:activeKey,
-      dateLabel:new Date(activeKey).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'}),
-      checks:{...checks},
-      formulaChecks:{...formulaChecks},
-      score:Object.values(checks).filter(Boolean).length,
-      meals:{breakfast:document.getElementById('meal_breakfast').value,lunch:document.getElementById('meal_lunch').value,supper:document.getElementById('meal_supper').value},
-      steps:document.getElementById('stepsInput').value||'0',
-      win:document.getElementById('winInput').value
-    };
-    showToast('Saving... \u23F3');
-    allData[activeKey] = entry;
-    await saveData(allData);
-    showToast('Saved! Well done today \uD83C\uDF38');
-  }
-
-  async function loadDay(dateStr){
-    allData = await loadData();
-    const e = allData[dateStr];
-    if(!e){ updateScore(); showToast(''); return; }
-    checks=e.checks||{};
-    formulaChecks=e.formulaChecks||{};
-    Object.entries(checks).forEach(([k,v])=>{if(v)document.querySelector('[data-key="'+k+'"]')?.classList.add('checked');});
-    // Restore formula ticks
-    Object.entries(formulaChecks).forEach(([k,v])=>{
-      if(v){
-        const [meal,cat]=k.split('_');
-        const el=document.querySelector(`.formula-check[data-meal="${meal}"][data-cat="${cat}"]`);
-        if(el)el.classList.add('ticked');
-      }
-    });
-    if(e.meals){['breakfast','lunch','supper'].forEach(m=>{const hidden=document.getElementById('meal_'+m);if(hidden&&e.meals[m]){hidden.value=e.meals[m];setMealFields(m,e.meals[m]);}});}
-    if(e.steps){document.getElementById('stepsInput').value=e.steps;updateSteps(e.steps);}
-    if(e.win)document.getElementById('winInput').value=e.win;
-    updateScore();
-    showToast('');
-  }
-
-  async function loadToday(){
-    showToast('Loading... \u23F3');
-    await loadDay(activeKey);
-  }
-
-  function renderHistory(){
-    const entries=Object.values(allData).sort((a,b)=>b.date.localeCompare(a.date));
-    const c=document.getElementById('historyContainer');
-    if(!entries.length){c.innerHTML='<div class="h-empty">No entries yet \uD83C\uDF31</div>';return;}
-    c.innerHTML=entries.map(e=>`<div class="h-entry"><div class="h-date">${e.dateLabel}</div><div class="h-pills"><span class="h-pill">${e.score}/5 habits</span>${e.steps&&e.steps!=='0'?'<span class="h-pill">'+parseInt(e.steps).toLocaleString()+' steps</span>':''}</div>${e.meals?.breakfast?'<div class="h-meal">\uD83C\uDF05 '+e.meals.breakfast+'</div>':''}${e.meals?.lunch?'<div class="h-meal">\u2600\uFE0F '+e.meals.lunch+'</div>':''}${e.meals?.supper?'<div class="h-meal">\uD83C\uDF19 '+e.meals.supper+'</div>':''}${e.win?'<div class="h-win">\u2728 "'+e.win+'"</div>':''}</div>`).join('');
-  }
-
-  function openFeedback(){
-    document.getElementById('feedbackOverlay').style.display='flex';
-  }
-  function closeFeedback(){
-    document.getElementById('feedbackOverlay').style.display='none';
-  }
-  function closeFeedbackOutside(e){
-    if(e.target===document.getElementById('feedbackOverlay')) closeFeedback();
-  }
-  function copyFeedback(){
-    const txt=document.getElementById('feedbackText').value.trim();
-    if(!txt){showToast('Write something first!');return;}
-    const out='Bug report from Esti\'s tracker:\n'+txt+'\n\nDate: '+activeKey+'\nDay: '+getDayNumber();
-    navigator.clipboard.writeText(out).then(()=>{
-      document.getElementById('copyConfirm').style.display='block';
-      setTimeout(()=>{document.getElementById('copyConfirm').style.display='none';closeFeedback();},1500);
-    });
-  }
-  function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;if(msg){t.classList.add('show');}else{t.classList.remove('show');}}
-
-  function saveAsPNG(){
-  const btns=document.querySelectorAll('button');
-  btns.forEach(b=>b.style.display='none');
-  html2canvas(document.querySelector('.page'),{backgroundColor:'#fdf8f5',scale:3,useCORS:true,logging:false}).then(canvas=>{
-    btns.forEach(b=>b.style.display='');
-    const out=document.createElement('canvas');
-    out.width=1080;out.height=1920;
-    const ctx=out.getContext('2d');
-    ctx.fillStyle='#fdf8f5';
-    ctx.fillRect(0,0,1080,1920);
-    const scale=Math.min(1000/canvas.width,1600/canvas.height);
-    const w=canvas.width*scale,h=canvas.height*scale;
-    ctx.drawImage(canvas,(1080-w)/2,(1920-h)/2,w,h);
-    const img=out.toDataURL('image/png');
-    const w2=window.open('');
-    w2.document.write('<html><head><meta name="viewport" content="width=device-width"><style>body{margin:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh}img{max-width:100%;max-height:90vh}p{color:white;font-family:sans-serif;font-size:16px;text-align:center;padding:16px;opacity:0.7}</style></head><body><img src="'+img+'"><p>Hold the image → Save to Photos</p></body></html>');
-    w2.document.close();
-  }).catch(e=>{btns.forEach(b=>b.style.display='');});
+  flag.textContent = '';
+  flag.classList.remove('visible');
 }
 
+// ── Save / Load ───────────────────────────────────────────────────
+function saveDay() {
+  const entry = {
+    date: activeKey,
+    dateLabel: new Date(activeKey).toLocaleDateString('en-GB', {weekday:'long',day:'numeric',month:'long',year:'numeric'}),
+    checks: {...checks},
+    formulaChecks: {...formulaChecks},
+    score: Object.values(checks).filter(Boolean).length,
+    meals: {
+      breakfast: document.getElementById('meal_breakfast').value,
+      lunch: document.getElementById('meal_lunch').value,
+      supper: document.getElementById('meal_supper').value,
+    },
+    steps: (document.getElementById('stepsInput').value || '0'),
+    win: document.getElementById('winInput').value,
+  };
+  allData[activeKey] = entry;
+  saveData(allData);
+  showToast('Saved! Well done today 🌸');
+}
 
+function loadDay(dateStr) {
+  allData = loadData();
+  const e = allData[dateStr];
+  if (!e) { updateScore(); return; }
+  checks = e.checks || {};
+  formulaChecks = e.formulaChecks || {};
 
+  // Restore habit ticks
+  Object.entries(checks).forEach(([k, v]) => {
+    if (v) {
+      const el = document.querySelector('[data-key="' + k + '"]');
+      if (el) el.classList.add('checked');
+    }
+  });
 
+  // Restore formula ticks
+  Object.entries(formulaChecks).forEach(([k, v]) => {
+    if (v) {
+      const [m, cat] = k.split('_');
+      const el = document.querySelector('.formula-check[data-meal="' + m + '"][data-cat="' + cat + '"]');
+      if (el) el.classList.add('ticked');
+    }
+  });
 
-  // Apply daily colour palette at init
-  const dailyPalettes=[
-    {h:'linear-gradient(135deg,#e8594a 0%,#ff7043 50%,#ff8fab 100%)',d:'#e8594a',r:'#ff8fab',w:'#ff7043'},
-    {h:'linear-gradient(135deg,#7b68ee 0%,#da70d6 50%,#ff8fab 100%)',d:'#7b68ee',r:'#da70d6',w:'#9b59b6'},
-    {h:'linear-gradient(135deg,#ff7043 0%,#ffb347 50%,#ffe066 100%)',d:'#e65c00',r:'#ffb347',w:'#ff7043'},
-    {h:'linear-gradient(135deg,#2ec4b6 0%,#56cfe1 50%,#b5ead7 100%)',d:'#2ec4b6',r:'#56cfe1',w:'#21b5aa'},
-    {h:'linear-gradient(135deg,#ff6b9d 0%,#ff8fab 50%,#ffc8dd 100%)',d:'#ff6b9d',r:'#ff8fab',w:'#e05a8a'},
-    {h:'linear-gradient(135deg,#f72585 0%,#b5179e 50%,#7209b7 100%)',d:'#b5179e',r:'#f72585',w:'#b5179e'},
-    {h:'linear-gradient(135deg,#06d6a0 0%,#1b9aaa 50%,#118ab2 100%)',d:'#1b9aaa',r:'#06d6a0',w:'#059e78'},
+  // Restore meal fields
+  if (e.meals) {
+    ['breakfast','lunch','supper'].forEach(m => {
+      const hidden = document.getElementById('meal_' + m);
+      if (hidden && e.meals[m]) {
+        hidden.value = e.meals[m];
+        setMealFields(m, e.meals[m]);
+      }
+    });
+  }
+
+  const stepsEl = document.getElementById('stepsInput');
+  if (e.steps && stepsEl) { stepsEl.value = e.steps; updateSteps(e.steps); }
+  const winEl = document.getElementById('winInput');
+  if (e.win && winEl) winEl.value = e.win;
+
+  updateScore();
+}
+
+// ── History ───────────────────────────────────────────────────────
+function renderHistory() {
+  const entries = Object.values(allData).sort((a, b) => b.date.localeCompare(a.date));
+  const c = document.getElementById('historyContainer');
+  if (!c) return;
+  if (!entries.length) { c.innerHTML = '<div class="h-empty">No entries yet 🌱</div>'; return; }
+  c.innerHTML = entries.map(e => {
+    const steps = e.steps && e.steps !== '0' ? '<span class="h-pill">' + parseInt(e.steps).toLocaleString() + ' steps</span>' : '';
+    const bf = e.meals && e.meals.breakfast ? '<div class="h-meal">🌅 ' + e.meals.breakfast + '</div>' : '';
+    const lu = e.meals && e.meals.lunch ? '<div class="h-meal">☀️ ' + e.meals.lunch + '</div>' : '';
+    const su = e.meals && e.meals.supper ? '<div class="h-meal">🌙 ' + e.meals.supper + '</div>' : '';
+    const win = e.win ? '<div class="h-win">✨ "' + e.win + '"</div>' : '';
+    return '<div class="h-entry"><div class="h-date">' + e.dateLabel + '</div><div class="h-pills"><span class="h-pill">' + e.score + '/5 habits</span>' + steps + '</div>' + bf + lu + su + win + '</div>';
+  }).join('');
+}
+
+// ── Toast ─────────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  if (!msg) { t.classList.remove('show'); return; }
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── Feedback modal ────────────────────────────────────────────────
+function openFeedback() {
+  const el = document.getElementById('feedbackOverlay');
+  if (el) el.style.display = 'flex';
+}
+function closeFeedback() {
+  const el = document.getElementById('feedbackOverlay');
+  if (el) el.style.display = 'none';
+}
+function closeFeedbackOutside(e) {
+  if (e.target === document.getElementById('feedbackOverlay')) closeFeedback();
+}
+function copyFeedback() {
+  const txt = (document.getElementById('feedbackText') || {}).value || '';
+  if (!txt.trim()) { showToast('Write something first!'); return; }
+  const out = 'Bug report from Esti tracker:\n' + txt + '\nDate: ' + activeKey;
+  navigator.clipboard.writeText(out).then(() => {
+    const note = document.getElementById('copiedNote');
+    if (note) note.style.display = 'block';
+    setTimeout(() => { if (note) note.style.display = 'none'; closeFeedback(); }, 1500);
+  }).catch(() => showToast('Copy failed — try manually'));
+}
+
+// ── Save as image ─────────────────────────────────────────────────
+function saveAsPNG() {
+  const page = document.querySelector('.page');
+  if (!page) return;
+  const btns = page.querySelectorAll('button');
+  btns.forEach(b => b.style.display = 'none');
+  html2canvas(page, { scale:2, useCORS:true, backgroundColor:'#fffaf8', width:390, windowWidth:390 }).then(canvas => {
+    btns.forEach(b => b.style.display = '');
+    const out = canvas.toDataURL('image/png');
+    const w = window.open('');
+    if (!w) { btns.forEach(b => b.style.display = ''); return; }
+    w.document.write('<html><body style="margin:0;background:#000"><img src="' + out + '" style="width:100%;display:block"></body></html>');
+    w.document.close();
+  }).catch(() => btns.forEach(b => b.style.display = ''));
+}
+
+// ── Daily colour palette ──────────────────────────────────────────
+function applyDailyPalette() {
+  const palettes = [
+    {h:'linear-gradient(135deg,#e8594a,#ff7043,#ff8fab)', d:'#e8594a', r:'#ff8fab', w:'#ff7043'},
+    {h:'linear-gradient(135deg,#7b68ee,#da70d6,#ff8fab)', d:'#7b68ee', r:'#da70d6', w:'#9b59b6'},
+    {h:'linear-gradient(135deg,#ff7043,#ffb347,#ffe066)', d:'#e65c00', r:'#ffb347', w:'#ff7043'},
+    {h:'linear-gradient(135deg,#2ec4b6,#56cfe1,#b5ead7)', d:'#2ec4b6', r:'#56cfe1', w:'#21b5aa'},
+    {h:'linear-gradient(135deg,#ff6b9d,#ff8fab,#ffc8dd)', d:'#ff6b9d', r:'#ff8fab', w:'#e05a8a'},
+    {h:'linear-gradient(135deg,#f72585,#b5179e,#7209b7)', d:'#b5179e', r:'#f72585', w:'#b5179e'},
+    {h:'linear-gradient(135deg,#06d6a0,#1b9aaa,#118ab2)', d:'#1b9aaa', r:'#06d6a0', w:'#059e78'},
   ];
-  const _dp=dailyPalettes[Math.floor((new Date()-new Date(new Date().getFullYear(),0,0))/86400000)%dailyPalettes.length];
-  document.documentElement.style.setProperty('--daily-header',_dp.h);
-  document.documentElement.style.setProperty('--deep',_dp.d);
-  document.documentElement.style.setProperty('--rose',_dp.r);
-  document.documentElement.style.setProperty('--warm',_dp.w);
-  updateScore();loadToday();
+  const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+  const p = palettes[dayOfYear % palettes.length];
+  const r = document.documentElement;
+  r.style.setProperty('--daily-header', p.h);
+  r.style.setProperty('--deep', p.d);
+  r.style.setProperty('--rose', p.r);
+  r.style.setProperty('--warm', p.w);
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+applyDailyPalette();
+updateStartDisplay();
+setActiveDate(todayKey);
+switchTab('today');
 </script>
 </body>
 </html>
