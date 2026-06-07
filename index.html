@@ -169,8 +169,8 @@
           <input class="formula-input" id="meal_breakfast_produce" placeholder="e.g. berries, spinach" oninput="syncMealField('breakfast','produce')">
         </div>
         <div class="meal-row" style="border-bottom:none;">
-          <div class="formula-check" onclick="toggleFormula(this,'breakfast','pleasure')" data-meal="breakfast" data-cat="pleasure"><div class="formula-box">&#10003;</div><div class="formula-label">&#10024; Pleasure</div></div>
-          <input class="formula-input" id="meal_breakfast_pleasure" placeholder="e.g. coffee, jam" oninput="syncMealField('breakfast','pleasure')">
+          <div style="width:76px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px;border-right:1px solid #f0e8e4;"><div style="font-size:10px;color:var(--muted);font-weight:500;text-align:center;">&#10024; Pleasure</div><div style="font-size:9px;color:var(--muted);text-align:center;line-height:1.2;margin-top:2px;opacity:0.65;">food you love</div></div>
+          <input class="formula-input" id="meal_breakfast_pleasure" placeholder="anything you enjoy — sauce, butter, a treat" oninput="syncMealField('breakfast','pleasure')">
         </div>
         <input type="hidden" id="meal_breakfast" value="">
       </div>
@@ -194,8 +194,8 @@
           <input class="formula-input" id="meal_lunch_produce" placeholder="e.g. salad, cucumber" oninput="syncMealField('lunch','produce')">
         </div>
         <div class="meal-row" style="border-bottom:none;">
-          <div class="formula-check" onclick="toggleFormula(this,'lunch','pleasure')" data-meal="lunch" data-cat="pleasure"><div class="formula-box">&#10003;</div><div class="formula-label">&#10024; Pleasure</div></div>
-          <input class="formula-input" id="meal_lunch_pleasure" placeholder="e.g. crisps, sauce" oninput="syncMealField('lunch','pleasure')">
+          <div style="width:76px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px;border-right:1px solid #f0e8e4;"><div style="font-size:10px;color:var(--muted);font-weight:500;text-align:center;">&#10024; Pleasure</div><div style="font-size:9px;color:var(--muted);text-align:center;line-height:1.2;margin-top:2px;opacity:0.65;">food you love</div></div>
+          <input class="formula-input" id="meal_lunch_pleasure" placeholder="anything you enjoy — sauce, butter, a treat" oninput="syncMealField('lunch','pleasure')">
         </div>
         <input type="hidden" id="meal_lunch" value="">
       </div>
@@ -262,8 +262,8 @@
           <input class="formula-input" id="meal_supper_produce" placeholder="e.g. green beans, salad" oninput="syncMealField('supper','produce')">
         </div>
         <div class="meal-row" style="border-bottom:none;">
-          <div class="formula-check" onclick="toggleFormula(this,'supper','pleasure')" data-meal="supper" data-cat="pleasure"><div class="formula-box">&#10003;</div><div class="formula-label">&#10024; Pleasure</div></div>
-          <input class="formula-input" id="meal_supper_pleasure" placeholder="e.g. dessert, sauce" oninput="syncMealField('supper','pleasure')">
+          <div style="width:76px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px;border-right:1px solid #f0e8e4;"><div style="font-size:10px;color:var(--muted);font-weight:500;text-align:center;">&#10024; Pleasure</div><div style="font-size:9px;color:var(--muted);text-align:center;line-height:1.2;margin-top:2px;opacity:0.65;">food you love</div></div>
+          <input class="formula-input" id="meal_supper_pleasure" placeholder="anything you enjoy — sauce, butter, a treat" oninput="syncMealField('supper','pleasure')">
         </div>
         <input type="hidden" id="meal_supper" value="">
       </div>
@@ -275,6 +275,10 @@
         <div class="check-item" onclick="toggleCheck(this)" data-key="workout">
           <div class="check-box">&#10003;</div>
           <div class="check-text">&#127947; Worked out today</div>
+        </div>
+        <div class="check-item" onclick="toggleCheck(this)" data-key="simple">
+          <div class="check-box">&#10003;</div>
+          <div class="check-text">&#127807; No extreme choices today &#8212; consistent, not perfect</div>
         </div>
       </div>
     </div>
@@ -460,7 +464,8 @@
     document.getElementById('focusSub').textContent = phase.sub;
 
     // Update dynamic habits
-    document.getElementById('habit_breakfast').textContent = '🍳 Ate breakfast today';
+    const hbEl = document.getElementById('habit_breakfast');
+    if (hbEl) hbEl.textContent = '🍳 Ate breakfast today';
     document.getElementById('habit_protein').textContent = phase.habitProtein;
     document.getElementById('habit_walk').textContent = '🚶 ' + phase.walk;
     document.getElementById('stepsHint').textContent = phase.stepsHint;
